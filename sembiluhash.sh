@@ -11,26 +11,30 @@ if [[ "$1" == "-h" ]]; then
         echo ""
 	echo "example:"
 	echo "sembiluhash [OPTION] [ARGS]..."
-	echo "sembiluhash -e kontol"
-	echo "sembiluhash -d M33MEK"
+	echo "sembiluhash -e foo"
+	echo "sembiluhash -d b44arr"
 	echo "just that, just like that."
         echo "++++++++++++++eof++++++++++++++++"
 else
-	touch .token.key
 	init=$(date +%s | cut -c 7-10) 
 	if [[ "$1" == "-e" ]]; then
-        	showtk=`echo $2$init |  md5sum | cut -c 1-6`
-        	echo $showtk $2 | base64 > .token.key
-        	echo "[Hashed text:] ${showtk^^}"
+        	showtk=`echo $2$init | md5sum | cut -c 1-6`
 		sleep 1
+		touch .$showtk.key
+        	echo $showtk $2 | base64 > .$showtk.key
+		plintir=`cat .$showtk.key | tr '[a-z]' '[n-zd-n]'`
+		echo $plintir > .$showtk.key
+        	echo "[Hashed text:] $showtk"
 	else
 		if [[ "$1" == "-d" ]]; then
-			token=`cat .token.key`
+			unplintir=`cat .$2.key 2>/dev/null | tr '[n-zd-n]' '[a-z]'`
+			echo $unplintir > .$2.key
+			token=`cat .$2.key 2>/dev/null`
 			check=`echo "$token" | base64 --decode 2>/dev/null | awk {'print $1'}`
 			decu=`echo "$token" | base64 --decode 2>/dev/null | cut -d ' ' -f2-`
-			if [ "${2,,}" == "$check" ]; then
+			if [ "$2" == "$check" ]; then
 		                echo "[Plaintext:] $decu"
-				echo "$RANDOM$RANDOM" > .token.key
+				rm -rf .$2.key
 		        else
         		        sleep 1
                 		echo "[hash unrecognized!]"
