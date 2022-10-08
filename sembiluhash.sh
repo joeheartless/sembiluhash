@@ -24,17 +24,18 @@ else
         	echo $showtk $2 | base64 > .$showtk.key
 		plintir=`cat .$showtk.key | tr '[a-z]' '[n-zd-n]'`
 		echo $plintir > .$showtk.key
-        	echo "[Hashed text:] $showtk"
+        	echo "[Hashed text:] ${showtk^^}"
 	else
 		if [[ "$1" == "-d" ]]; then
-			unplintir=`cat .$2.key 2>/dev/null | tr '[n-zd-n]' '[a-z]'`
-			echo $unplintir > .$2.key
-			token=`cat .$2.key 2>/dev/null`
+			low=${2,,}
+			unplintir=`cat .$low.key 2>/dev/null | tr '[n-zd-n]' '[a-z]'`
+			echo $unplintir > .$low.key
+			token=`cat .$low.key 2>/dev/null`
 			check=`echo "$token" | base64 --decode 2>/dev/null | awk {'print $1'}`
 			decu=`echo "$token" | base64 --decode 2>/dev/null | cut -d ' ' -f2-`
-			if [ "$2" == "$check" ]; then
+			if [ "${2,,}" == "$check" ]; then
 		                echo "[Plaintext:] $decu"
-				rm -rf .$2.key
+				rm -rf .$low.key
 		        else
         		        sleep 1
                 		echo "[hash unrecognized!]"
