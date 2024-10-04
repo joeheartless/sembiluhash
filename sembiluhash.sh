@@ -16,12 +16,12 @@ if [[ "$1" == "-h" ]]; then
 	echo "just that, just like that."
         echo "++++++++++++++eof++++++++++++++++"
 else
-	init=$(date +%s | cut -c 7-10) 
+	init=$(shuf -i 1000-9999 -n 1) 
 	if [[ "$1" == "-e" ]]; then
         	showtk=`echo $2$init | md5sum | cut -c 1-6`
 		sleep 1
 		touch .$showtk.key
-        	echo $showtk $2 | base64 > .$showtk.key
+        	echo $showtk ${@} | base64 > .$showtk.key
 		plintir=`cat .$showtk.key | tr '[a-z]' '[n-zd-n]'`
 		echo $plintir > .$showtk.key
         	echo "[Hashed text:] ${showtk^^}"
