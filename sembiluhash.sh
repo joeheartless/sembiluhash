@@ -1,9 +1,8 @@
 #!/bin/bash
-VERSION="Sembilu X PLIR-256 Hugel_1 Version"
+VERSION="Sembilu X PLIR-256 v.6.9"
 
 touch .keys 
 TEMP_KEYS_FILE=".keys"
-
 
 to_ascii() {
     echo -n "$1" | hexdump -ve '1/1 "%02x"'
@@ -33,19 +32,32 @@ Usage:
   $0 -v|--version          Display the program version.
 
 Feature:
-  - Entries that are newly encoded get a 5-minute expiry time.
+  - Entries that are newly encoded get a 10-minute expiry time.
   - If that time passes, the entry is automatically removed from .keys.
-  - After decoded, the entry is automatically removed from .keys.
+  - Old entries (which do not have an expiry column) will remain intact.
 
 EOF
 }
-
 
 clean_expired_entries() {
     local now
     now=$(date +%s)
 
     awk -F'|' -v now="$now" '
+    {
+      if (NF < 5) {
+        print $0
+      } else {
+        if ($5 ~ /^[0-9]+$/) {
+          expiry_time=$5
+          if (now <= expiry_time) {
+            print $0
+          }
+        } else {
+          print $0
+        }
+      }
+    }
     ' "$TEMP_KEYS_FILE" > "$TEMP_KEYS_FILE.tmp"
 
     mv "$TEMP_KEYS_FILE.tmp" "$TEMP_KEYS_FILE"
@@ -70,8 +82,7 @@ generate_code() {
 
     local now
     now=$(date +%s)
-    local expiry_time=$(( now + 300 ))
-
+    local expiry_time=$(( now + 600 ))
     echo "$short_code|$ascii_input|$salt|$hash|$expiry_time" >> "$TEMP_KEYS_FILE"
 
     echo "Generated code: $short_code"
@@ -129,13 +140,11 @@ case "$1" in
         ;;
     -e|--encode)
         shift
-
         if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
             ENCODE_DATA="$*"
         else
             ENCODE_DATA="$(cat -)"
         fi
-
         clean_expired_entries
 
         generate_code "$ENCODE_DATA"
