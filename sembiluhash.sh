@@ -1,60 +1,116 @@
 #!/bin/bash
+VERSION="Sembilu X PLIR-256 Hugel_1 Version"
 
-touch .keys
+touch .keys 
+TEMP_KEYS_FILE=".keys"
+
 
 to_ascii() {
     echo -n "$1" | hexdump -ve '1/1 "%02x"'
 }
 
 from_ascii() {
-    echo -n "$1" | xxd -r -p 2>/dev/null || { echo "Error: Invalid encoded data"; exit 1; }
+    echo -n "$1" | xxd -r -p 2>/dev/null || {
+        echo "Error: Invalid encoded data"
+        exit 1
+    }
+}
+
+rotate_tr() {
+    echo "$1" | tr 'A-Za-z' 'N-ZA-Mn-za-m'
+}
+
+show_version() {
+    echo "Version: $VERSION"
+}
+
+show_help() {
+    cat <<EOF
+Usage:
+  $0 -e|--encode <data>    Encode <data> and generate a short code.
+  $0 -d|--decode <code>    Decode <code> back to the original data.
+  $0 -h|--help             Display this help message.
+  $0 -v|--version          Display the program version.
+
+Feature:
+  - Entries that are newly encoded get a 5-minute expiry time.
+  - If that time passes, the entry is automatically removed from .keys.
+  - After decoded, the entry is automatically removed from .keys.
+
+EOF
+}
+
+
+clean_expired_entries() {
+    local now
+    now=$(date +%s)
+
+    awk -F'|' -v now="$now" '
+    ' "$TEMP_KEYS_FILE" > "$TEMP_KEYS_FILE.tmp"
+
+    mv "$TEMP_KEYS_FILE.tmp" "$TEMP_KEYS_FILE"
 }
 
 generate_code() {
     local showtk="$*"
-    local salt=$(openssl rand -hex 8) 
-    local ascii_input=$(to_ascii "$showtk") 
-    local hash=$(echo -n "${ascii_input}${salt}" | md5sum | awk '{print $1}')
-    local short_code=${hash:0:6} 
 
-    echo "$short_code|$ascii_input|$salt|$hash" >> .keys
+    local rotated_input
+    rotated_input=$(rotate_tr "$showtk")
+
+    local salt
+    salt=$(openssl rand -hex 8)
+
+    local ascii_input
+    ascii_input=$(to_ascii "$rotated_input")
+
+    local hash
+    hash=$(echo -n "${ascii_input}${salt}" | plirsum | awk '{print $1}')
+
+    local short_code=${hash:0:6}
+
+    local now
+    now=$(date +%s)
+    local expiry_time=$(( now + 300 ))
+
+    echo "$short_code|$ascii_input|$salt|$hash|$expiry_time" >> "$TEMP_KEYS_FILE"
+
     echo "Generated code: $short_code"
 }
 
 decode_code() {
     local short_code="$1"
-    local match=$(grep "^${short_code}|" .keys)
+
+    local match
+    match=$(grep "^${short_code}|" "$TEMP_KEYS_FILE")
 
     if [ -z "$match" ]; then
-        echo "Error: Code not found!"
+        echo "Error: Code not found or expired!"
         exit 1
     fi
 
-    local ascii_input=$(echo "$match" | awk -F'|' '{print $2}')
-    local salt=$(echo "$match" | awk -F'|' '{print $3}')
-    local stored_hash=$(echo "$match" | awk -F'|' '{print $4}')
-    local check_hash=$(echo -n "${ascii_input}${salt}" | md5sum | awk '{print $1}')
+    local ascii_input salt stored_hash
+    ascii_input=$(echo "$match" | awk -F'|' '{print $2}')
+    salt=$(echo "$match"        | awk -F'|' '{print $3}')
+    stored_hash=$(echo "$match" | awk -F'|' '{print $4}')
+
+    local check_hash
+    check_hash=$(echo -n "${ascii_input}${salt}" | plirsum | awk '{print $1}')
 
     if [ "$check_hash" != "$stored_hash" ]; then
         echo "Error: Hash mismatch! Data might be altered."
         exit 1
     fi
 
-    local full_data=$(from_ascii "$ascii_input")
-    echo "Decoded data: $full_data"
+    local full_data
+    full_data=$(rotate_tr "$(from_ascii "$ascii_input")")
+
+    echo -e "Decoded data:\n$(echo "$full_data" | fold -w 50 -s)"
 
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "/^${short_code}|/d" .keys
+        sed -i '' "/^${short_code}|/d" "$TEMP_KEYS_FILE"
     else
-        sed -i "/^${short_code}|/d" .keys
+        sed -i "/^${short_code}|/d" "$TEMP_KEYS_FILE"
     fi
-}
-
-show_help() {
-    echo "Usage:"
-    echo " $0 -e <data>   Encode data and generate short code"
-    echo " $0 -d <code>   Decode short code to original data"
-    echo " $0 -h          Show this help message"
 }
 
 if [ $# -lt 1 ]; then
@@ -62,13 +118,42 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-if [ "$1" == "-e" ]; then
-    shift
-    generate_code "$*"
-elif [ "$1" == "-d" ]; then
-    shift
-    decode_code "$1"
-else
-    show_help
-    exit 1
-fi
+case "$1" in
+    -h|--help)
+        show_help
+        exit 0
+        ;;
+    -v|--version)
+        show_version
+        exit 0
+        ;;
+    -e|--encode)
+        shift
+
+        if [ $# -gt 0 ] && [[ "$1" != -* ]]; then
+            ENCODE_DATA="$*"
+        else
+            ENCODE_DATA="$(cat -)"
+        fi
+
+        clean_expired_entries
+
+        generate_code "$ENCODE_DATA"
+        ;;
+    -d|--decode)
+        shift
+        SHORT_CODE="$1"
+        if [ -z "$SHORT_CODE" ]; then
+            echo "Error: no code supplied to decode!"
+            exit 1
+        fi
+
+        clean_expired_entries
+
+        decode_code "$SHORT_CODE"
+        ;;
+    *)
+        show_help
+        exit 1
+        ;;
+esac
