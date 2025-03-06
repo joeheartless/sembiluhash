@@ -48,7 +48,6 @@ decode_code() {
     else
         sed -i "/^${short_code}|/d" .keys
     fi
-    echo "Data dengan kode $short_code berhasil dihapus dari .keys."
 }
 
 show_help() {
