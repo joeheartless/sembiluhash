@@ -43,20 +43,22 @@ clean_expired_entries() {
     local now
     now=$(date +%s)
 
+    # Buat file sementara
     awk -F'|' -v now="$now" '
     {
-      if (NF < 5) {
-        print $0
-      } else {
-        if ($5 ~ /^[0-9]+$/) {
-          expiry_time=$5
-          if (now <= expiry_time) {
+        # Jika jumlah kolom kurang dari 5, entri bukan format baru 
+        # (mungkin entri lama) -> biarkan saja
+        if (NF < 5) {
             print $0
-          }
         } else {
-          print $0
+            # Kolom ke-5 adalah expiry_time
+            expiry_time = $5
+            # Jika expiry_time valid dan now <= expiry_time, entri masih berlaku
+            if (expiry_time ~ /^[0-9]+$/ && now <= expiry_time) {
+                print $0
+            }
+            # Jika now sudah lebih besar dari expiry_time, entri hangus, maka tidak di-print
         }
-      }
     }
     ' "$TEMP_KEYS_FILE" > "$TEMP_KEYS_FILE.tmp"
 
