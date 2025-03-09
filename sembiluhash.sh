@@ -1,7 +1,7 @@
 #!/bin/bash
 VERSION="Sembilu X PLIR-256 v.6.9"
 
-touch .keys 
+touch .keys
 TEMP_KEYS_FILE=".keys"
 
 to_ascii() {
@@ -30,6 +30,7 @@ Usage:
   $0 -d|--decode <code>    Decode <code> back to the original data.
   $0 -h|--help             Display this help message.
   $0 -v|--version          Display the program version.
+  $0 --generate-salt       Generate random salt
 
 Feature:
   - Entries that are newly encoded get a 10-minute expiry time.
@@ -121,6 +122,28 @@ decode_code() {
     fi
 }
 
+generate_salt() {
+    local input="$1"
+
+    if [ -z "$input" ]; then
+        echo "Error: No input provided for salt generation!"
+        exit 1
+    fi
+    local rotated_input
+    rotated_input=$(rotate_tr "$showtk")
+
+    local salt
+    salt=$(openssl rand -hex 8)
+
+    local ascii_input
+    ascii_input=$(to_ascii "$rotated_input")
+
+    local hash
+    hash=$(echo -n "${ascii_input}${salt}" | plirsum | awk '{print substr ($1,1,16)}')
+
+    echo "$hash"
+}
+
 if [ $# -lt 1 ]; then
     show_help
     exit 1
@@ -157,6 +180,14 @@ case "$1" in
         clean_expired_entries
 
         decode_code "$SHORT_CODE"
+        ;;
+    --generate-salt)
+        shift
+        if [ -z "$1" ]; then
+            echo "Error: No username supplied!"
+            exit 1
+        fi
+        generate_salt "$1"
         ;;
     *)
         show_help
